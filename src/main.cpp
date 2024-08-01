@@ -7,6 +7,7 @@
 #include <WiFiUdp.h>
 #if LV_USE_TFT_ESPI
 #include <TFT_eSPI.h>
+#include <Bluetoothserial.h>
 #endif
 
 /*To use the built-in examples and demos of LVGL uncomment the includes below respectively.
@@ -17,6 +18,7 @@
 //#include <examples/lv_examples.h>
 //#include <demos/lv_demos.h>
 // WiFi credentials
+//BluetoothSerial BT;
 const char *ssid = "CU_fAdh";
 const char *password = "7ffkzhbb";
 WiFiUDP ntpUDP;
@@ -79,24 +81,23 @@ void setup()
     LVGL_Arduino += String('V') + lv_version_major() + "." + lv_version_minor() + "." + lv_version_patch();
 
     Serial.begin( 115200 );
+    //BT.begin("cuijiaming");
     Serial.println( LVGL_Arduino );
-  WiFi.begin(ssid, password);
+//WiFi.begin(ssid,password);
+while(WiFi.status()!=WL_CONNECTED)
+{
+  
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
-
-  Serial.println("Connected to WiFi");
+}
     lv_init();
 
     /*Set a tick source so that LVGL will know how much time elapsed. */
     //lv_tick_set_cb(millis);
 
     /* register print function for debugging */
-#if LV_USE_LOG != 0
-    lv_log_register_print_cb( my_print );
-#endif
+// #if LV_USE_LOG != 0
+//     lv_log_register_print_cb( my_print );
+// #endif
 
     lv_display_t * disp;
 #if LV_USE_TFT_ESPI
@@ -110,9 +111,9 @@ void setup()
 #endif
 
     /*Initialize the (dummy) input device driver*/
-    lv_indev_t * indev = lv_indev_create();
-    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER); /*Touchpad should have POINTER type*/
-    lv_indev_set_read_cb(indev, my_touchpad_read);
+    // lv_indev_t * indev = lv_indev_create();
+    // lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER); /*Touchpad should have POINTER type*/
+   // lv_indev_set_read_cb(indev, my_touchpad_read);
 
     /* Create a simple label
      * ---------------------
@@ -133,15 +134,15 @@ void setup()
      lv_demo_widgets();
      */
 
-    lv_obj_t *label = lv_label_create( lv_scr_act() );
-    lv_label_set_text( label, "Hello Arduino, I'm LVGL!" );
-    lv_obj_align( label, LV_ALIGN_CENTER, 0, 0 );
+    // lv_obj_t *label = lv_label_create( lv_scr_act() );
+    // lv_label_set_text( label, "Hello Arduino, I'm LVGL!" );
+    // lv_obj_align( label, LV_ALIGN_CENTER, 0, 0 );
     //lv_switch_create(label);
     Serial.println( "Setup done" );
 }
 
 void loop()
 {
-    lv_task_handler(); /* let the GUI do its work */
+    // lv_task_handler(); /* let the GUI do its work */
     delay(5); /* let this time pass */
 }
