@@ -19,11 +19,14 @@
 uint32_t draw_buf[DRAW_BUF_SIZE / 4];
 // const char * ssid1 = "CU_fAdh";
 // const char * password1 = "7ffkzhbb";
-//const char * ssid1 = "wedf";
-//const char * password1 = "2001605aA";
-const char * ssid1 = "CU_TFdz";
-const char * password1 = "e4u397bk";
+const char * ssid1 = "wedf";
+const char * password1 = "2001605aA";
+// const char * ssid1 = "CU_TFdz";
+// const char * password1 = "e4u397bk";
 const char *ntpServer = "pool.ntp.org";
+String  url ="http://apis.juhe.cn/simpleWeather/query";
+String city="天津";
+String key="8a52aa2381ca5c29e4f8b31c5e112345";
 const long gmtOffset_sec = 8 * 3600;
 const int daylightOffset_sec = 0;
 void create_lines() ;
@@ -61,6 +64,7 @@ lv_obj_t *img1; // 图片对象
 lv_obj_t *img2; // 图片对象
 lv_obj_t *img3; // 图片对象
 lv_obj_t *img4; // 图片对象
+lv_obj_t *label_temp;
 // 创建标签对象显示天气信息
 lv_obj_t *label_weather_info;
 static lv_point_precise_t line_points[] = { {0, 50},{480, 50} }; // 画线
@@ -222,7 +226,17 @@ void setup() {
     lv_obj_add_style(label_date, &style_date_time, 0);
     lv_obj_add_style(label_time, &style_date_time, 0);
     lv_obj_add_style(label_weekday, &style_date_time, 0);
+// 创建温度标签
+label_temp = lv_label_create(lv_scr_act());
+lv_label_set_text(label_temp, "Temp:");
+lv_obj_align(label_temp, LV_ALIGN_CENTER, 0, 0);
 
+// 创建并设置标签样式
+static lv_style_t style_temp;
+lv_style_init(&style_temp);
+lv_style_set_text_font(&style_temp, &lv_font_montserrat_18);
+lv_style_set_text_color(&style_temp, lv_color_hex(0x000000)); // 标签文本颜色为黑色
+lv_obj_add_style(label_temp, &style_temp, 0);
     // 设置初始时间为2024年8月1日13点46分
     struct tm initialTime;
     initialTime.tm_year = 2024 - 1900;  // 年份是从1900开始的，所以需要减去1900
@@ -305,59 +319,49 @@ void create_lines() {
     lv_line_set_points(line, line_points6, 2);
     lv_obj_add_style(line, &style_line, 0);
 }
+int temp,humidity;
 void fetch_weather_data(void *parameter) {
+     vTaskDelay(pdMS_TO_TICKS(60000)); // 每分钟请求一次
+     label_temp = lv_label_create(lv_scr_act()); // 创建标签对象
+    lv_label_set_text(label_temp, "Temp:");
+    lv_obj_align(label_temp, LV_ALIGN_CENTER, 0, 0);
+    //  lv_label_set_text(label_temp, "Temp:");
+    // lv_obj_align(label_temp, LV_ALIGN_CENTER, 50, 0);
+    
+    static lv_style_t style_temp;
+    lv_style_init(&style_temp);
+    lv_style_set_text_font(&style_temp, &lv_font_montserrat_18);
+    lv_style_set_text_color(&style_temp, lv_color_hex(0x000000)); // 标签文本颜色为黑色
+    lv_obj_add_style(label_temp, &style_temp, 0);
     while (true) {
         if (WiFi.status() == WL_CONNECTED) {
             HTTPClient http;
-            http.begin("https://devapi.qweather.com/v7/weather/24h?location=101010100&key=39e43c01dd204cd5a31b77e1c38669f8"); // 替换为实际天气 API URL
-           // http.addHeader("Accept-Encoding", "gzip"); // 请求 Gzip 压缩数据
+            http.begin(url+"?city="+city+"&key="+key);
+            int http_code=http.GET();
+            String response =http.getString();
+        //     HTTPClient http;
+        //     http.begin("https://devapi.qweather.com/v7/weather/24h?location=101010100&key=39e43c01dd204cd5a31b77e1c38669f8"); // 替换为实际天气 API URL
+        //    // http.addHeader("Accept-Encoding", "gzip"); // 请求 Gzip 压缩数据
 
-            int httpCode = http.GET();
-            if (httpCode == HTTP_CODE_OK) {
-                // 获取响应体长度
-                int len = http.getSize();
-                uint8_t *buffer = (uint8_t*)malloc(len);
-                if (buffer) {
-                    // 读取数据
-                    WiFiClient *stream = http.getStreamPtr();
-                    int bytesRead = stream->readBytes(buffer, len);
-                    if (bytesRead > 0) {
-                        // 解压 Gzip 数据
-                        uint8_t *outbuf = NULL;
-                        uint32_t out_size = 0;
-                        int result = ArduinoUZlib::decompress(buffer, len, outbuf, out_size);
+            // int httpCode = http.GET();
+            if (http_code == HTTP_CODE_OK) {
+          DynamicJsonDocument doc(1024);
+                deserializeJson(doc, response);
+                temp = doc["result"]["realtime"]["temperature"].as<int>();
+                humidity = doc["result"]["realtime"]["humidity"].as<int>();
+                // 更新标签内容
+                String temp_str = "Temp: " + String(temp) + "°C"+"humi: " + String(humidity) + "%";
+                // String humidity_str = "humi: " + String(humidity) + "%";
+                lv_label_set_text(label_temp, temp_str.c_str());
+                
 
-                        if (result ) { // 解压成功
-                            // 解析 JSON 数据
-                            DynamicJsonDocument doc(8192);
-                            DeserializationError error = deserializeJson(doc, (char*)outbuf, out_size);
-
-                            if (!error) {
-                                // 提取并显示天气信息
-                                // 获取最近的小时天气数据
-                                    JsonArray hourly = doc["hourly"];
-                                    JsonObject latestHour = hourly[0]; // 获取最近的小时数据（第一个元素）
-
-                                    const char* latestTemp = latestHour["temp"]; // 获取温度值
-                                lv_label_set_text(label_weather_info, latestTemp);
-                            } else {
-                                Serial.println("Failed to parse JSON");
-                            }
-
-                            free(outbuf);
-                        } else {
-                            Serial.println("Gzip decompression failed");
-                        }
-                    }
-                    free(buffer);
-                }
             } else {
-                Serial.printf("HTTP GET failed with code %d\n", httpCode);
+                Serial.printf("HTTP GET failed with code %d\n", http_code);
             }
             http.end();
         } else {
             Serial.println("WiFi not connected");
         }
-        vTaskDelay(pdMS_TO_TICKS(60000)); // 每分钟请求一次
+        vTaskDelay(pdMS_TO_TICKS(600000)); // 每分钟请求一次
     }
 }
