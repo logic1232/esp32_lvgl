@@ -6,25 +6,31 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <NTPClient.h>
-#include <ArduinoUZlib.h> // 引入 Gzip 解码库
+// #include <ArduinoUZlib.h> // 引入 Gzip 解码库
+#include <FT6336U.h>
 #if LV_USE_TFT_ESPI
 #include <TFT_eSPI.h>
 #endif
-
+#define I2C_SDA 21 // 4
+#define I2C_SCL 22 // 15
+#define RST_N_PIN 5
+#define INT_N_PIN 17
 #define TFT_HOR_RES 480
 #define TFT_VER_RES 320
 #define TFT_ROTATION LV_DISPLAY_ROTATION_0
-
+/*------------ 触摸驱动对象 ------------*/
+FT6336U ft6336u(I2C_SDA, I2C_SCL, RST_N_PIN, INT_N_PIN);
+FT6336U_TouchPointType tp;
 #define DRAW_BUF_SIZE (TFT_HOR_RES * TFT_VER_RES / 10 * (LV_COLOR_DEPTH / 8))
 
 uint32_t draw_buf[DRAW_BUF_SIZE / 4];
 
 // const char *ssid1 = "CU_fAdh";
 // const char *password1 = "7ffkzhbb";
-const char *ssid1 = "wedf";
-const char *password1 = "2001605aA";
-// const char *ssid1 = "CU_TFdz";
-// const char *password1 = "e4u397bk";
+// const char *ssid1 = "wedf";
+// const char *password1 = "2001605aA";
+const char *ssid1 = "CU_TFdz";
+const char *password1 = "e4u397bk";
 const char *ntpServer = "pool.ntp.org";
 String url = "http://apis.juhe.cn/simpleWeather/query";
 String city = "天津";
@@ -59,6 +65,22 @@ void my_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 
 void my_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
+
+    tp = ft6336u.scan();
+
+    /* 判断屏幕是否被按下 */
+    bool touched = tp.touch_count;
+    if (touched)
+    {
+        /* 将获取的坐标传入 LVGL */
+        data->point.x = TFT_HOR_RES - tp.tp[0].y;
+        data->point.y = tp.tp[0].x;
+        data->state = LV_INDEV_STATE_PRESSED;
+    }
+    else
+    {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
     // 触摸屏读取函数
 }
 
@@ -67,6 +89,7 @@ static uint32_t my_tick(void)
     return millis();
 }
 
+lv_obj_t *label_button;  // 标签对象用于显示日期和时间
 lv_obj_t *label_date;    // 标签对象用于显示日期和时间
 lv_obj_t *label_local;   // 标签对象用于地点
 lv_obj_t *label_wid;     // 标签对象用于显示风力
@@ -232,7 +255,7 @@ void lvgl_task(void *pvParameter)
     while (1)
     {
         lv_timer_handler();           // 处理 LVGL 定时器
-        vTaskDelay(pdMS_TO_TICKS(5)); // 每 5 毫秒调用一次
+        vTaskDelay(pdMS_TO_TICKS(2)); // 每 5 毫秒调用一次
     }
 }
 UBaseType_t taskCount;
@@ -240,8 +263,10 @@ void setup()
 {
     pinMode(2, OUTPUT);
     Serial.begin(115200);
+    ft6336u.begin();
 
     lv_init();
+
     lv_tick_set_cb(my_tick);
 
 #if LV_USE_LOG != 0
@@ -261,6 +286,11 @@ void setup()
     lv_indev_t *indev = lv_indev_create();
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, my_touchpad_read);
+    // 创建按钮
+    // lv_obj_t *sw = lv_switch_create(lv_screen_active());
+    // lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    //  lv_obj_t *sw1 = lv_switch_create(lv_screen_active());
+    // lv_obj_align(sw1, LV_ALIGN_RIGHT_MID, 0, -20);
 
     // 创建并初始化样式
     static lv_style_t style_bg;
@@ -357,7 +387,7 @@ void setup()
     /*未来第5天天气 */
     label_TEMP_F5 = lv_label_create(lv_scr_act()); // 在屏幕上创建一个标签对象
     lv_obj_set_style_text_font(label_TEMP_F5, &lv_font_montserrat_22, 0);
-    lv_obj_align(label_TEMP_F5, LV_ALIGN_BOTTOM_LEFT, 394, -10); // 将标签居中显示
+    lv_obj_align(label_TEMP_F5, LV_ALIGN_BOTTOM_LEFT, 390, -10); // 将标签居中显示
     label_DATE_F5 = lv_label_create(lv_scr_act());               // 在屏幕上创建一个标签对象
     lv_obj_set_style_text_font(label_DATE_F5, &lv_font_montserrat_22, 0);
     lv_obj_align(label_DATE_F5, LV_ALIGN_BOTTOM_LEFT, 394, -100); // 将标签居中显示
@@ -565,45 +595,54 @@ void fetch_weather_data(void *parameter)
                 String shortDate3 = Date_f3.substring(5); // 从第6个字符开始提取
                 String shortDate4 = Date_f4.substring(5); // 从第6个字符开始提取
                 String shortDate5 = Date_f5.substring(5); // 从第6个字符开始提取
-                String weathers[] = {
-                    futureWeather1["weather"].as<String>(),
-                    futureWeather2["weather"].as<String>(),
-                    futureWeather3["weather"].as<String>(),
-                    futureWeather4["weather"].as<String>(),
-                    futureWeather5["weather"].as<String>()};
+                int weathers[] = {
+                    futureWeather1["wid"]["day"].as<int>(),
+                    futureWeather2["wid"]["day"].as<int>(),
+                    futureWeather3["wid"]["day"].as<int>(),
+                    futureWeather4["wid"]["day"].as<int>(),
+                    futureWeather5["wid"]["day"].as<int>(),
+                };
 
                 for (int i = 0; i < 5; i++)
                 {
 
-                    if (weathers[i] == "晴")
+                    if (weathers[i] == 00) // 晴
                     {
                         lv_img_set_src(img_objects[i], &sunny_48);
                     }
-                    if (weathers[i] == "阴")
+                    else if (weathers[i] == 01 || weathers[i] == 02) // 阴，多云
                     {
                         lv_img_set_src(img_objects[i], &cloudy_48);
                     }
+                    else if (weathers[i] == 04) // 雷阵雨
+                    {
+                        lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    }
+                    // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
+                    // else if (weathers[i] == 06)  //雪加雨  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
+                    // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
+                    // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
+                    // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
+                    // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
+                    // {
+                    //     lv_img_set_src(img_objects[i], &thunder_shower_48);
+                    // }
 
-                    if (weathers[i] == "阴转多云")
-                    {
-                        lv_img_set_src(img_objects[i], &cloudy_48);
-                    }
-                    else if (weathers[i] == "阴转晴")
-                    {
-                        lv_img_set_src(img_objects[i], &cloudy_48);
-                    }
-                    else if (weathers[i] == "多云转阴")
-                    {
-                        lv_img_set_src(img_objects[i], &cloudy_48);
-                    }
-                    else if (weathers[i] == "雷阵雨")
-                    {
-                        lv_img_set_src(img_objects[i], &thunder_shower_48);
-                    }
-                    else if (weathers[i] == "雷阵雨转阴")
-                    {
-                        lv_img_set_src(img_objects[i], &thunder_shower_48);
-                    }
                     else
                     {
                     }
@@ -621,7 +660,7 @@ void fetch_weather_data(void *parameter)
                 lv_label_set_text(label_TEMP_F2, Temp_f2_show.c_str()); // 设置标签的文本内容
                 lv_label_set_text(label_TEMP_F3, Temp_f3_show.c_str()); // 设置标签的文本内容
                 lv_label_set_text(label_TEMP_F4, Temp_f4_show.c_str()); // 设置标签的文本内容
-                lv_label_set_text(label_TEMP_F5, Temp_f5_show.c_str()); // 设置标签的文本内容
+                 lv_label_set_text(label_TEMP_F5, Temp_f5_show.c_str()); // 设置标签的文本内容
 
                 // 更新标签内容
                 String temp_str = String(temp) + "°C";
