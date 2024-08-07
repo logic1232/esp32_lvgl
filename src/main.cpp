@@ -16,18 +16,20 @@
 #define TFT_ROTATION LV_DISPLAY_ROTATION_0
 
 #define DRAW_BUF_SIZE (TFT_HOR_RES * TFT_VER_RES / 10 * (LV_COLOR_DEPTH / 8))
+
 uint32_t draw_buf[DRAW_BUF_SIZE / 4];
+
 // const char *ssid1 = "CU_fAdh";
 // const char *password1 = "7ffkzhbb";
-// const char *ssid1 = "wedf";
-// const char *password1 = "2001605aA";
-const char *ssid1 = "CU_TFdz";
-const char *password1 = "e4u397bk";
+const char *ssid1 = "wedf";
+const char *password1 = "2001605aA";
+// const char *ssid1 = "CU_TFdz";
+// const char *password1 = "e4u397bk";
 const char *ntpServer = "pool.ntp.org";
 String url = "http://apis.juhe.cn/simpleWeather/query";
 String city = "天津";
-// String key = "8a52aa2381ca5c29e4f8b31c5e112345";
-String key = "5910a2606b97e657991cbdd08c31e0c4";
+String key = "8a52aa2381ca5c29e4f8b31c5e112345";
+// String key = "5910a2606b97e657991cbdd08c31e0c4";
 const long gmtOffset_sec = 8 * 3600;
 const int daylightOffset_sec = 0;
 lv_color_t color_brown = lv_color_hex(0x8B4513);  // 代码中使用的浅棕色
@@ -66,7 +68,9 @@ static uint32_t my_tick(void)
 }
 
 lv_obj_t *label_date;    // 标签对象用于显示日期和时间
-lv_obj_t *label_local;    // 标签对象用于地点
+lv_obj_t *label_local;   // 标签对象用于地点
+lv_obj_t *label_wid;     // 标签对象用于显示风力
+lv_obj_t *label_aqi;     // 标签对象用于显示空气质量
 lv_obj_t *label_weather; // 标签对象用于显示日期和时间
 lv_obj_t *label_time;    // 标签对象用于显示日期和时间
 lv_obj_t *label_weekday; // 标签对象用于显示星期几
@@ -108,6 +112,8 @@ LV_IMG_DECLARE(cloudy_48);
 LV_IMG_DECLARE(thunder_shower_48);
 LV_FONT_DECLARE(lv_chinese_25);
 LV_IMG_DECLARE(local_32);
+LV_IMG_DECLARE(wid_32);
+LV_IMG_DECLARE(aqi_32);
 TaskHandle_t wifiTaskHandle = NULL; // 全局任务句柄，用于管理 wifi_task
 WiFiUDP udp;
 NTPClient timeClient(udp, ntpServer, gmtOffset_sec, 60000); // 每60秒更新一次时间
@@ -272,11 +278,22 @@ void setup()
     lv_label_set_text(label_date, "Loading...");
     lv_obj_align(label_date, LV_ALIGN_TOP_LEFT, 10, 10);
 
- // 创建位置标签
+    // 创建风向标签
+    label_wid = lv_label_create(lv_scr_act());
+    lv_label_set_text(label_wid, "Loading...");
+    lv_obj_align(label_wid, LV_ALIGN_LEFT_MID, 50, 0);
+    lv_obj_set_style_text_font(label_wid, &lv_chinese_25, 0);
+
+    // 创建空气质量标签
+    label_aqi = lv_label_create(lv_scr_act());
+    lv_label_set_text(label_aqi, "Loading...");
+    lv_obj_align(label_aqi, LV_ALIGN_LEFT_MID, 220, 0);
+    lv_obj_set_style_text_font(label_aqi, &lv_chinese_25, 0);
+
+    // 创建位置标签
     label_local = lv_label_create(lv_scr_act());
     lv_obj_align(label_local, LV_ALIGN_LEFT_MID, 50, -40);
- lv_obj_set_style_text_font(label_local, &lv_chinese_25, 0);
-
+    lv_obj_set_style_text_font(label_local, &lv_chinese_25, 0);
 
     label_time = lv_label_create(lv_scr_act());
     lv_label_set_text(label_time, "Loading...");
@@ -379,6 +396,8 @@ void setup()
     img5 = lv_image_create(lv_scr_act());
     img6 = lv_image_create(lv_scr_act());
     lv_obj_align(img6, LV_ALIGN_LEFT_MID, 10, -40); // 将标签居中显示
+    lv_obj_align(img2, LV_ALIGN_LEFT_MID, 10, 0);   // 将标签居中显示
+    lv_obj_align(img3, LV_ALIGN_LEFT_MID, 180, 0);  // 将标签居中显示
     //   lv_image_set_src(img, &WIFI);
     //  lv_obj_align(img, LV_ALIGN_TOP_RIGHT, -10, 10); // 设置图像位置
 
@@ -449,6 +468,7 @@ void create_lines()
 int temp, humidity;
 void fetch_weather_data(void *parameter)
 {
+    String aqi_level;
     lv_label_set_text(labelxiegang, "/");
     // 初始化图像对象和标签
     for (int i = 0; i < 5; i++)
@@ -458,6 +478,7 @@ void fetch_weather_data(void *parameter)
     }
     while (true)
     {
+
         if (WiFi.status() == WL_CONNECTED)
         {
 
@@ -473,6 +494,41 @@ void fetch_weather_data(void *parameter)
                 temp = doc["result"]["realtime"]["temperature"].as<int>();
                 humidity = doc["result"]["realtime"]["humidity"].as<int>();
                 String info = doc["result"]["realtime"]["info"].as<String>();
+                String wid_direct = doc["result"]["realtime"]["direct"].as<String>();
+                String wid_strength = doc["result"]["realtime"]["power"].as<String>();
+                int aqi_data = doc["result"]["realtime"]["aqi"].as<int>();
+
+                if (aqi_data < 50)
+                {
+                    aqi_level = "优";
+                }
+                else if (aqi_data < 100)
+                {
+                    aqi_level = "良";
+                }
+                else if (aqi_data < 150)
+                {
+                    aqi_level = "中等";
+                }
+                else if (aqi_data < 200)
+                {
+                    aqi_level = "差";
+                }
+                else if (aqi_data < 300)
+                {
+                    aqi_level = "很差";
+                }
+                else if (aqi_data < 500)
+                {
+                    aqi_level = "严重";
+                }
+
+                String wid = wid_direct + wid_strength;
+                String aqi = aqi_level + "(" + String(aqi_data) + ")";
+                lv_image_set_src(img2, &wid_32);
+                lv_image_set_src(img3, &aqi_32);
+                lv_label_set_text(label_aqi, aqi.c_str());
+                lv_label_set_text(label_wid, wid.c_str());
                 lv_label_set_text(label_local, "天津");
                 lv_image_set_src(img6, &local_32);
                 lv_label_set_text(label_weather, info.c_str());
@@ -518,6 +574,7 @@ void fetch_weather_data(void *parameter)
 
                 for (int i = 0; i < 5; i++)
                 {
+
                     if (weathers[i] == "晴")
                     {
                         lv_img_set_src(img_objects[i], &sunny_48);
@@ -617,14 +674,28 @@ void fetch_weather_data(void *parameter)
                 lv_obj_set_style_text_color(label_humidity, humidity_color, 0);
 
                 // 阴晴图片显示
-                if (info == "多云")
+                if (info == "阵雨")
+                {
+                    lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
+                    LV_IMG_DECLARE(shower_128);
+                    lv_img_set_src(img1, &shower_128);
+                    lv_obj_align(img1, LV_ALIGN_CENTER, 90, -40); // 设置图像位置
+                }
+                else if (info == "小雨")
+                {
+                    lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
+                    LV_IMG_DECLARE(small_rain);
+                    lv_img_set_src(img1, &small_rain);
+                    lv_obj_align(img1, LV_ALIGN_CENTER, 50, -60); // 设置图像位置
+                }
+                else if (info == "多云")
                 {
                     lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
                     LV_IMG_DECLARE(cloudy_light);
                     lv_img_set_src(img1, &cloudy_light);
                     lv_obj_align(img1, LV_ALIGN_CENTER, 50, -60); // 设置图像位置
                 }
-                if (info == "阴")
+                else if (info == "阴")
                 {
                     lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
                     LV_IMG_DECLARE(cloudy_light);
