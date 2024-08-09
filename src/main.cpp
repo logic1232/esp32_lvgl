@@ -137,13 +137,16 @@ static lv_point_precise_t line_points5[] = {{384, 185}, {384, 320}}; // 画线
 LV_IMG_DECLARE(sunny_48);
 LV_IMG_DECLARE(cloudy_48);
 LV_IMG_DECLARE(thunder_shower_48);
+LV_IMG_DECLARE(small_rain_48);
 LV_FONT_DECLARE(lv_chinese_25);
 LV_IMG_DECLARE(local_32);
 LV_IMG_DECLARE(wid_32);
 LV_IMG_DECLARE(aqi_32);
+LV_IMG_DECLARE(thunder_shower_128);
 TaskHandle_t wifiTaskHandle = NULL; // 全局任务句柄，用于管理 wifi_task
 WiFiUDP udp;
 NTPClient timeClient(udp, ntpServer, gmtOffset_sec, 60000); // 每60秒更新一次时间
+
 void update_time_label(void *parameter)
 { // 时间更新任务
     TickType_t xLastWakeTime;
@@ -187,7 +190,7 @@ void update_time_label(void *parameter)
         Serial.println("running");
 
         // 延时1秒
-       vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
     }
 }
 void wifi_task(void *parameter)
@@ -269,6 +272,18 @@ void lvgl_task(void *pvParameter)
 }
 UBaseType_t taskCount;
 static lv_coord_t prev_x = 0; // 移动到函数外部，并在初始化时设置
+
+void switch_event_handler(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
+    if (code == LV_EVENT_VALUE_CHANGED)
+    {
+        bool state = lv_obj_has_state(obj, LV_STATE_CHECKED); // 获取开关状态
+        digitalWrite(2, state ? HIGH : LOW);                  // 根据状态控制GPIO电平
+    }
+}
+
 static void gesture_event_handler(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e); // 获取事件类型
@@ -306,6 +321,7 @@ void create_screens()
     screens[1] = lv_obj_create(NULL);
     lv_obj_t *sw = lv_switch_create(screens[1]);
     lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_add_event_cb(sw, switch_event_handler, LV_EVENT_ALL, NULL); // 绑定事件回调
     // lv_obj_set_style_bg_color(screens[1], lv_color_hex(0xF0FDE0), LV_PART_MAIN);
     // lv_label_create(screens[1]);
 
@@ -674,6 +690,11 @@ void fetch_weather_data(void *parameter)
                     {
                         lv_img_set_src(img_objects[i], &thunder_shower_48);
                     }
+                     else if (weathers[i] == 07) // 小雨
+                    {
+                        lv_img_set_src(img_objects[i], &small_rain_48);
+                    }
+
                     // else if (weathers[i] == 05)  //雷阵雨+冰雹  没搞
                     // {
                     //     lv_img_set_src(img_objects[i], &thunder_shower_48);
@@ -769,7 +790,13 @@ void fetch_weather_data(void *parameter)
                 lv_obj_set_style_text_color(label_humidity, humidity_color, 0);
 
                 // 阴晴图片显示
-                if (info == "阵雨")
+                if (info == "雷阵雨")
+                {
+                    lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
+                    lv_img_set_src(img1, &thunder_shower_128);
+                    lv_obj_align(img1, LV_ALIGN_CENTER, 90, -40); // 设置图像位置
+                }
+                else if (info == "阵雨")
                 {
                     lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
                     LV_IMG_DECLARE(shower_128);
@@ -814,8 +841,8 @@ void fetch_weather_data(void *parameter)
                 else if (info == "大雨")
                 {
                     lv_obj_clear_flag(img1, LV_OBJ_FLAG_HIDDEN);
-                    LV_IMG_DECLARE(heavy_rain);
-                    lv_img_set_src(img1, &heavy_rain);
+                    LV_IMG_DECLARE(hearvyrain_128);
+                    lv_img_set_src(img1, &hearvyrain_128);
                     lv_obj_align(img1, LV_ALIGN_CENTER, 50, -60); // 设置图像位置
                 }
                 else if (info == "晴")
