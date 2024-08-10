@@ -150,7 +150,10 @@ LV_IMG_DECLARE(local_32);
 LV_IMG_DECLARE(wid_32);
 LV_IMG_DECLARE(aqi_32);
 LV_IMG_DECLARE(thunder_shower_128);
-TaskHandle_t wifiTaskHandle = NULL; // 全局任务句柄，用于管理 wifi_task
+TaskHandle_t wifiTaskHandle = NULL;               // 全局任务句柄，用于管理 wifi_task
+TaskHandle_t update_signal_strengthHandle = NULL; // 全局任务句柄，用于管理 wifi_task
+TaskHandle_t update_time_labelHandle = NULL;      // 全局任务句柄，用于管理 wifi_task
+TaskHandle_t fetch_weather_dataHandle = NULL;     // 全局任务句柄，用于管理 wifi_task
 WiFiUDP udp;
 NTPClient timeClient(udp, ntpServer, gmtOffset_sec, 60000); // 每60秒更新一次时间
 
@@ -213,11 +216,11 @@ void wifi_task(void *parameter)
         Serial.println("Connected to WiFi");
         // 启动 NTP 客户端
         timeClient.begin();
-        xTaskCreatePinnedToCore(update_signal_strength, "updata_signal_strength", 2048, NULL, 2, NULL, 1);
+        xTaskCreatePinnedToCore(update_signal_strength, "updata_signal_strength", 2048, NULL, 2, &update_signal_strengthHandle, 1);
         // vTaskDelay(pdMS_TO_TICKS(000)); // 每秒检查一次连接状态
-        xTaskCreatePinnedToCore(update_time_label, "UpdateTime", 4096, NULL, 3, NULL, 1);
+        xTaskCreatePinnedToCore(update_time_label, "UpdateTime", 4096, NULL, 3, &update_time_labelHandle, 1);
         vTaskDelay(pdMS_TO_TICKS(1000)); // 每秒检查一次连接状态
-        xTaskCreatePinnedToCore(fetch_weather_data, "FetchWeatherData", 4096, NULL, 2, NULL, 1);
+        xTaskCreatePinnedToCore(fetch_weather_data, "FetchWeatherData", 4096, NULL, 2, &fetch_weather_dataHandle, 1);
 
         vTaskSuspend(NULL); // 连接成功后挂起任务
     }
@@ -293,9 +296,9 @@ void switch_event_handler(lv_event_t *e)
         else
             greeAC.off();
         greeAC.send(); // 发送红外
-       lv_disp_set_rotation(NULL,LV_DISPLAY_ROTATION_90 );
+
+        //    lv_disp_set_rotation(NULL,LV_DISPLAY_ROTATION_90 );
     }
-    
 }
 
 static void gesture_event_handler(lv_event_t *e)
@@ -314,6 +317,9 @@ static void gesture_event_handler(lv_event_t *e)
                 lv_scr_load(screens[current_screen]);
                 lv_scr_load_anim(screens[0], LV_SCR_LOAD_ANIM_MOVE_BOTTOM, 100, 0, true);
             }
+            vTaskResume(update_signal_strengthHandle);
+            vTaskResume(update_time_labelHandle);
+            // vTaskResume(fetch_weather_dataHandle);
         }
         else if (dir == LV_DIR_LEFT)
         {
@@ -324,21 +330,28 @@ static void gesture_event_handler(lv_event_t *e)
                 lv_scr_load(screens[current_screen]);
                 lv_scr_load_anim(screens[1], LV_SCR_LOAD_ANIM_MOVE_TOP, 100, 0, true);
             }
+            vTaskSuspend(update_signal_strengthHandle);
+            vTaskSuspend(update_time_labelHandle);
+            // vTaskSuspend(fetch_weather_dataHandle);
         }
     }
 }
 
 void create_screens()
 {
-       
 
     screens[0] = lv_obj_create(NULL);
 
     screens[1] = lv_obj_create(NULL);
     lv_obj_t *sw = lv_switch_create(screens[1]);
-    lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
-    lv_btnmatrix_create(screens[1]);
+    lv_obj_align(sw, LV_ALIGN_LEFT_MID, 0, 0);
+    static const char *map[] = {"swtich", "model", "\n", "speed", "direction", "Sweeping", "\n", "-", "temp", "+", "\n", "time", "sleep", "...", ""};
+    lv_obj_t *btnm = lv_btnmatrix_create(screens[1]);
+    lv_buttonmatrix_set_map(btnm, map);
+    lv_obj_set_size(btnm, 310, 320);                              // 设置按钮矩阵的宽度为200，高度为150
+    lv_obj_align(btnm, LV_ALIGN_CENTER, 80,0);
     lv_obj_add_event_cb(sw, switch_event_handler, LV_EVENT_ALL, NULL); // 绑定事件回调
+
     // lv_obj_set_style_bg_color(screens[1], lv_color_hex(0xF0FDE0), LV_PART_MAIN);
     // lv_label_create(screens[1]);
 
@@ -352,7 +365,7 @@ void setup()
     ft6336u.begin();
     greeAC.begin(); // 初始化 IR 发送对象
     lv_init();
- 
+
     lv_tick_set_cb(my_tick);
 
 // lv_obj_t *screen2 = lv_obj_create(NULL);
