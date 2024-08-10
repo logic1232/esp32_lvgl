@@ -8,6 +8,9 @@
 #include <NTPClient.h>
 // #include <ArduinoUZlib.h> // 引入 Gzip 解码库
 #include <FT6336U.h>
+#include <IRremoteESP8266.h>
+#include <IRsend.h>
+#include "IR_Gree.h"
 #if LV_USE_TFT_ESPI
 #include <TFT_eSPI.h>
 #endif
@@ -20,6 +23,10 @@
 #define TFT_ROTATION LV_DISPLAY_ROTATION_0
 #define SCREEN_COUNT 2     // 页面个数
 #define SWIPE_THRESHOLD 20 // 滑动距离
+/*------------ 触摸驱动对象 ------------*/
+const uint16_t kIrLed = 18; // 设置 IR 发射 LED 引脚
+IRGreeAC greeAC(kIrLed);    // 创建 IRGreeAC 对象
+
 /*------------ 触摸驱动对象 ------------*/
 FT6336U ft6336u(I2C_SDA, I2C_SCL, RST_N_PIN, INT_N_PIN);
 FT6336U_TouchPointType tp;
@@ -281,7 +288,14 @@ void switch_event_handler(lv_event_t *e)
     {
         bool state = lv_obj_has_state(obj, LV_STATE_CHECKED); // 获取开关状态
         digitalWrite(2, state ? HIGH : LOW);                  // 根据状态控制GPIO电平
+        if (state)
+            greeAC.on(); // 发送开机命令
+        else
+            greeAC.off();
+        greeAC.send(); // 发送红外
+       lv_disp_set_rotation(NULL,LV_DISPLAY_ROTATION_90 );
     }
+    
 }
 
 static void gesture_event_handler(lv_event_t *e)
@@ -316,11 +330,14 @@ static void gesture_event_handler(lv_event_t *e)
 
 void create_screens()
 {
+       
+
     screens[0] = lv_obj_create(NULL);
 
     screens[1] = lv_obj_create(NULL);
     lv_obj_t *sw = lv_switch_create(screens[1]);
     lv_obj_align(sw, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_btnmatrix_create(screens[1]);
     lv_obj_add_event_cb(sw, switch_event_handler, LV_EVENT_ALL, NULL); // 绑定事件回调
     // lv_obj_set_style_bg_color(screens[1], lv_color_hex(0xF0FDE0), LV_PART_MAIN);
     // lv_label_create(screens[1]);
@@ -333,9 +350,9 @@ void setup()
     pinMode(2, OUTPUT);
     Serial.begin(115200);
     ft6336u.begin();
-
+    greeAC.begin(); // 初始化 IR 发送对象
     lv_init();
-
+ 
     lv_tick_set_cb(my_tick);
 
 // lv_obj_t *screen2 = lv_obj_create(NULL);
@@ -690,7 +707,7 @@ void fetch_weather_data(void *parameter)
                     {
                         lv_img_set_src(img_objects[i], &thunder_shower_48);
                     }
-                     else if (weathers[i] == 07) // 小雨
+                    else if (weathers[i] == 07) // 小雨
                     {
                         lv_img_set_src(img_objects[i], &small_rain_48);
                     }
