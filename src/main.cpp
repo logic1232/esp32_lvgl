@@ -24,8 +24,9 @@
 #define SCREEN_COUNT 2     // 页面个数
 #define SWIPE_THRESHOLD 20 // 滑动距离
 
-
- int i_ac_temp = 16;   //空调温度
+int i_ac_temp = 16; // 空调温度
+uint8_t i_model = 0;
+String s_model[] = {"自动", "制冷", "除湿", "送风", "制热"};
 /*------------ 触摸驱动对象 ------------*/
 const uint16_t kIrLed = 18; // 设置 IR 发射 LED 引脚
 IRGreeAC greeAC(kIrLed);    // 创建 IRGreeAC 对象
@@ -102,6 +103,7 @@ static uint32_t my_tick(void)
 {
     return millis();
 }
+lv_obj_t *lv_model;           // 空调温度
 lv_obj_t *air_condition_temp; // 空调温度
 lv_obj_t *gree;               //"格力空调"
 lv_obj_t *label_button;       // 标签对象用于显示日期和时间
@@ -366,7 +368,8 @@ void btnm_event_cb(lv_event_t *e)
             if (!a)
             {
                 digitalWrite(2, LOW);
-                greeAC.on(); // 发送开机命令
+                greeAC.on();   // 发送开机命令
+                greeAC.send(); // 发送红外
                 printf("Switch button pressed.\n");
                 a = true;
                 lv_btnmatrix_set_map(obj, map2); // 更新按钮矩阵内容
@@ -374,7 +377,8 @@ void btnm_event_cb(lv_event_t *e)
             else
             {
                 digitalWrite(2, HIGH);
-                greeAC.off(); // 发送关机命令
+                greeAC.off();  // 发送关机命令
+                greeAC.send(); // 发送红外
                 printf("Switch button pressed.\n");
                 a = false;
                 lv_btnmatrix_set_map(obj, map3); // 更新按钮矩阵内容
@@ -382,19 +386,38 @@ void btnm_event_cb(lv_event_t *e)
         }
         else if (id == 1)
         {
-            digitalWrite(2, HIGH);
-            printf("Cancel button pressed.\n");
+            if (i_model < 4)
+                i_model++;
+            else
+                i_model = 0;
+            lv_label_set_text(lv_model, (s_model[i_model]).c_str());
+            greeAC.setMode(i_model);
+            greeAC.send(); // 发送红外
+            // printf("Cancel button pressed.\n");
         }
-         else if (id == 5&&i_ac_temp>16)
+        else if (id == 2)
         {
-            
-           i_ac_temp--;
+            if (i_speed < 4)
+                i_speed++;
+            else
+                i_speed = 0;
+            lv_label_set_text(lv_speed, (s_speed[i_speed]).c_str());
+            greeAC.setFan(i_speed);
+            greeAC.send(); // 发送红外
+            // printf("Cancel button pressed.\n");
         }
-         else if (id == 7&&i_ac_temp<30)
+        else if (id == 5 && i_ac_temp > 16)
         {
-             i_ac_temp++;
-            
-            
+
+            i_ac_temp--;
+            greeAC.setTemp(i_ac_temp);
+            greeAC.send(); // 发送红外
+        }
+        else if (id == 7 && i_ac_temp < 30)
+        {
+            i_ac_temp++;
+            greeAC.setTemp(i_ac_temp);
+            greeAC.send(); // 发送红外
         }
 
         else
@@ -431,7 +454,7 @@ void create_screens()
 }
 void air_condition(void *pvParameter)
 {
-   
+
     while (1)
     {
 
@@ -467,7 +490,7 @@ void setup()
     lv_display_set_buffers(disp, draw_buf, NULL, sizeof(draw_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
 #endif
     create_screens();
-    lv_scr_load(screens[0]);
+    lv_scr_load(screens[1]);
     lv_indev_t *indev = lv_indev_create();
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, my_touchpad_read);
@@ -483,6 +506,10 @@ void setup()
     // lv_style_set_bg_color(&style_bg, lv_color_hex(0xFFFFE0));
     // lv_obj_add_style(screens[0], &style_bg, LV_PART_MAIN);
 
+    lv_model = lv_label_create(screens[1]); // 空调温度
+    lv_obj_align(lv_model, LV_ALIGN_TOP_LEFT, 20, 40);
+
+    lv_obj_set_style_text_font(lv_model, &lv_chinese_25, 0);
 
     gree = lv_label_create(screens[1]);
     lv_obj_align(gree, LV_ALIGN_TOP_LEFT, 20, 0);
