@@ -2,6 +2,7 @@
     "cmake.sourceDirectory": "C:/Users/13209/Documents/PlatformIO/Projects/esp32_lvgl/lib/uzlib",
     "files.associations": {
         "lvgl.h": "c",
-        "string": "cpp"
+        "string": "cpp",
+        "random": "cpp"
     }
 }

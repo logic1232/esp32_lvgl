@@ -99,15 +99,16 @@ static uint32_t my_tick(void)
 {
     return millis();
 }
-
-lv_obj_t *label_button;  // 标签对象用于显示日期和时间
-lv_obj_t *label_date;    // 标签对象用于显示日期和时间
-lv_obj_t *label_local;   // 标签对象用于地点
-lv_obj_t *label_wid;     // 标签对象用于显示风力
-lv_obj_t *label_aqi;     // 标签对象用于显示空气质量
-lv_obj_t *label_weather; // 标签对象用于显示日期和时间
-lv_obj_t *label_time;    // 标签对象用于显示日期和时间
-lv_obj_t *label_weekday; // 标签对象用于显示星期几
+lv_obj_t *air_condition_temp; // 空调温度
+lv_obj_t *gree;               //"格力空调"
+lv_obj_t *label_button;       // 标签对象用于显示日期和时间
+lv_obj_t *label_date;         // 标签对象用于显示日期和时间
+lv_obj_t *label_local;        // 标签对象用于地点
+lv_obj_t *label_wid;          // 标签对象用于显示风力
+lv_obj_t *label_aqi;          // 标签对象用于显示空气质量
+lv_obj_t *label_weather;      // 标签对象用于显示日期和时间
+lv_obj_t *label_time;         // 标签对象用于显示日期和时间
+lv_obj_t *label_weekday;      // 标签对象用于显示星期几
 lv_obj_t *line;
 lv_obj_t *img;      // 图片对象
 time_t currentTime; // 保存当前时间的全局变量
@@ -336,6 +337,57 @@ static void gesture_event_handler(lv_event_t *e)
         }
     }
 }
+// 定义初始的按钮矩阵文本
+static const char *map1[] = {
+    "switch", "model", "\n", "speed", "direction", "Sweeping",
+    "\n", "-", "temp", "+", "\n", "time", "sleep", "...", ""};
+
+static const char *map2[] = {
+    "on", "model", "\n", "speed", "direction", "Sweeping",
+    "\n", "-", "temp", "+", "\n", "time", "sleep", "...", ""};
+
+static const char *map3[] = {
+    "off", "model", "\n", "speed", "direction", "Sweeping",
+    "\n", "-", "temp", "+", "\n", "time", "sleep", "...", ""};
+void btnm_event_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *obj = (lv_obj_t *)lv_event_get_target(e);
+    static bool a = false; // 使用 bool 类型并初始化
+    if (code == LV_EVENT_VALUE_CHANGED)
+    {
+        uint32_t id = lv_buttonmatrix_get_selected_button(obj);
+
+        if (id == 0)
+        {
+            if (!a)
+            {
+                digitalWrite(2, LOW);
+                greeAC.on(); // 发送开机命令
+                printf("Switch button pressed.\n");
+                a = true;
+                lv_btnmatrix_set_map(obj, map2); // 更新按钮矩阵内容
+            }
+            else
+            {
+                digitalWrite(2, HIGH);
+                greeAC.off(); // 发送关机命令
+                printf("Switch button pressed.\n");
+                a = false;
+                lv_btnmatrix_set_map(obj, map3); // 更新按钮矩阵内容
+            }
+        }
+        else if (id == 1)
+        {
+            digitalWrite(2, HIGH);
+            printf("Cancel button pressed.\n");
+        }
+        else
+        {
+            printf("Button pressed: %d\n", id);
+        }
+    }
+}
 
 void create_screens()
 {
@@ -345,18 +397,37 @@ void create_screens()
     screens[1] = lv_obj_create(NULL);
     lv_obj_t *sw = lv_switch_create(screens[1]);
     lv_obj_align(sw, LV_ALIGN_LEFT_MID, 0, 0);
-    static const char *map[] = {"swtich", "model", "\n", "speed", "direction", "Sweeping", "\n", "-", "temp", "+", "\n", "time", "sleep", "...", ""};
+
     lv_obj_t *btnm = lv_btnmatrix_create(screens[1]);
-    lv_buttonmatrix_set_map(btnm, map);
-    lv_obj_set_size(btnm, 310, 320);                              // 设置按钮矩阵的宽度为200，高度为150
-    lv_obj_align(btnm, LV_ALIGN_CENTER, 80,0);
+    lv_btnmatrix_set_map(btnm, map1); // 初始时使用 map1
+    lv_obj_set_size(btnm, 310, 320);  // 设置按钮矩阵的宽度为200，高度为150
+    lv_obj_align(btnm, LV_ALIGN_CENTER, 80, 0);
+    lv_btnmatrix_set_btn_ctrl(btnm, 0, LV_BTNMATRIX_CTRL_CHECKABLE);
     lv_obj_add_event_cb(sw, switch_event_handler, LV_EVENT_ALL, NULL); // 绑定事件回调
+
+    lv_obj_add_event_cb(btnm, btnm_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
 
     // lv_obj_set_style_bg_color(screens[1], lv_color_hex(0xF0FDE0), LV_PART_MAIN);
     // lv_label_create(screens[1]);
 
     lv_obj_add_event_cb(screens[0], gesture_event_handler, LV_EVENT_GESTURE, NULL);
     lv_obj_add_event_cb(screens[1], gesture_event_handler, LV_EVENT_GESTURE, NULL);
+}
+void air_condition(void *pvParameter)
+{
+    int i_ac_temp=16;
+    while (1)
+    {
+        air_condition_temp=lv_label_create(screens[1]);
+        String s_ac_temp=String(i_ac_temp)+"°C";
+        lv_tabel_set_text(air_condition_temp,s_ac_temp);
+        lv_obj_align(air_condition_temp,LV_ALIGN_LEFT_MID,20,0);
+
+
+        vTaskDelay(100);
+
+
+    }
 }
 void setup()
 {
@@ -398,6 +469,10 @@ void setup()
     // lv_style_init(&style_bg);
     // lv_style_set_bg_color(&style_bg, lv_color_hex(0xFFFFE0));
     // lv_obj_add_style(screens[0], &style_bg, LV_PART_MAIN);
+    gree = lv_label_create(screens[1]);
+    lv_obj_align(gree, LV_ALIGN_TOP_LEFT, 20, 0);
+    lv_label_set_text(gree, "格力空调");
+    lv_obj_set_style_text_font(gree, &lv_chinese_25, 0);
 
     // 字符显示天气状况
     label_weather = lv_label_create(screens[0]);
@@ -538,8 +613,9 @@ void setup()
     // 创建WiFi连接任务
     xTaskCreate(wifi_task, "WiFiTask", 8192, NULL, 1, &wifiTaskHandle);
     // 创建FreeRTOS任务
-
+    xTaskCreatePinnedToCore(air_condition, "air_condition", 2048, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(lvgl_task, "LVGL Task", 6144, NULL, 10, NULL, 1);
+
     //  taskCount = uxTaskGetNumberOfTasks();
 }
 
