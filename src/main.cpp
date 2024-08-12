@@ -420,7 +420,7 @@ void air_condition(void *pvParameter)
     {
         air_condition_temp=lv_label_create(screens[1]);
         String s_ac_temp=String(i_ac_temp)+"°C";
-        lv_tabel_set_text(air_condition_temp,s_ac_temp);
+        lv_label_set_text(air_condition_temp,s_ac_temp.c_str());
         lv_obj_align(air_condition_temp,LV_ALIGN_LEFT_MID,20,0);
 
 
