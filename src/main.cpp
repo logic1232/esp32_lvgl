@@ -23,6 +23,9 @@
 #define TFT_ROTATION LV_DISPLAY_ROTATION_0
 #define SCREEN_COUNT 2     // 页面个数
 #define SWIPE_THRESHOLD 20 // 滑动距离
+
+
+ int i_ac_temp = 16;   //空调温度
 /*------------ 触摸驱动对象 ------------*/
 const uint16_t kIrLed = 18; // 设置 IR 发射 LED 引脚
 IRGreeAC greeAC(kIrLed);    // 创建 IRGreeAC 对象
@@ -382,6 +385,18 @@ void btnm_event_cb(lv_event_t *e)
             digitalWrite(2, HIGH);
             printf("Cancel button pressed.\n");
         }
+         else if (id == 5&&i_ac_temp>16)
+        {
+            
+           i_ac_temp--;
+        }
+         else if (id == 7&&i_ac_temp<30)
+        {
+             i_ac_temp++;
+            
+            
+        }
+
         else
         {
             printf("Button pressed: %d\n", id);
@@ -403,6 +418,7 @@ void create_screens()
     lv_obj_set_size(btnm, 310, 320);  // 设置按钮矩阵的宽度为200，高度为150
     lv_obj_align(btnm, LV_ALIGN_CENTER, 80, 0);
     lv_btnmatrix_set_btn_ctrl(btnm, 0, LV_BTNMATRIX_CTRL_CHECKABLE);
+
     lv_obj_add_event_cb(sw, switch_event_handler, LV_EVENT_ALL, NULL); // 绑定事件回调
 
     lv_obj_add_event_cb(btnm, btnm_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
@@ -415,18 +431,15 @@ void create_screens()
 }
 void air_condition(void *pvParameter)
 {
-    int i_ac_temp=16;
+   
     while (1)
     {
-        air_condition_temp=lv_label_create(screens[1]);
-        String s_ac_temp=String(i_ac_temp)+"°C";
-        lv_label_set_text(air_condition_temp,s_ac_temp.c_str());
-        lv_obj_align(air_condition_temp,LV_ALIGN_LEFT_MID,20,0);
 
+        String s_ac_temp = String(i_ac_temp) + "°C";
+
+        lv_label_set_text(air_condition_temp, s_ac_temp.c_str());
 
         vTaskDelay(100);
-
-
     }
 }
 void setup()
@@ -469,6 +482,8 @@ void setup()
     // lv_style_init(&style_bg);
     // lv_style_set_bg_color(&style_bg, lv_color_hex(0xFFFFE0));
     // lv_obj_add_style(screens[0], &style_bg, LV_PART_MAIN);
+
+
     gree = lv_label_create(screens[1]);
     lv_obj_align(gree, LV_ALIGN_TOP_LEFT, 20, 0);
     lv_label_set_text(gree, "格力空调");
@@ -531,6 +546,9 @@ void setup()
     label_humidity = lv_label_create(screens[0]);
     lv_obj_align(label_humidity, LV_ALIGN_TOP_LEFT, 140, 60); // 调整位置
 
+    air_condition_temp = lv_label_create(screens[1]);
+    lv_obj_align(air_condition_temp, LV_ALIGN_LEFT_MID, 60, 0);
+    lv_obj_set_style_text_font(air_condition_temp, &lv_font_montserrat_22, 0);
     /*未来第一天天气 */
     label_TEMP_F1 = lv_label_create(screens[0]); // 在屏幕上创建一个标签对象
     lv_obj_set_style_text_font(label_TEMP_F1, &lv_font_montserrat_22, 0);
